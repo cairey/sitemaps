@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -13,10 +14,10 @@ namespace Sitemaps
 {
     public class SitemapService : ISitemapService
     {
-        private static readonly ICollection<SitemapNode> _staticNodes;
-        private static readonly ICollection<SitemapNode> _dynamicNodes;
+        private static readonly ICollection<SitemapNode> StaticNodes;
+        private static readonly ICollection<SitemapNode> DynamicNodes;
 
-        private static readonly object _sync = new object();
+        private static readonly object Sync = new object();
 
         public static int PageSize { get; set; }
 
@@ -25,8 +26,8 @@ namespace Sitemaps
         static SitemapService()
         {
             PageSize = 125;
-            _staticNodes = new List<SitemapNode>(0);
-            _dynamicNodes = new List<SitemapNode>(0);
+            StaticNodes = new List<SitemapNode>(0);
+            DynamicNodes = new List<SitemapNode>(0);
         }
 
         public static void Register()
@@ -57,14 +58,14 @@ namespace Sitemaps
 
                 var pages = Math.Ceiling(nodes.TotalCount / (double)PageSize);
 
-                var timestamp = nodes.First().LastModified;
+                var timestamp = new DateTimeOffset(nodes.First().LastModified);
 
                 for (var i = 0; i < pages; i++)
                 {
                     root.Add(
                     new XElement(xmlns + "sitemap",
                         new XElement(xmlns + "loc", Uri.EscapeUriString(string.Format("{0}/?page={1}", GetUrl(context), i + 1))),
-                        new XElement(xmlns + "lastmod", timestamp.ToString("s", System.Globalization.CultureInfo.InvariantCulture)))
+                        new XElement(xmlns + "lastmod", timestamp.ToString("yyyy-MM-ddTHH:mmK", CultureInfo.InvariantCulture)))
                         );
                 }
             }
@@ -77,7 +78,7 @@ namespace Sitemaps
                     root.Add(
                     new XElement(xmlns + "url",
                         new XElement(xmlns + "loc", Uri.EscapeUriString(node.Url)),
-                        new XElement(xmlns + "lastmod", node.LastModified.ToString("s", System.Globalization.CultureInfo.InvariantCulture)),
+                        new XElement(xmlns + "lastmod", node.LastModified.ToString("yyyy-MM-ddTHH:mmK", CultureInfo.InvariantCulture)),
                         new XElement(xmlns + "changefreq", node.Frequency.ToString().ToLowerInvariant()),
                         new XElement(xmlns + "priority", node.Priority.ToString().ToLowerInvariant())
                         ));
@@ -100,7 +101,7 @@ namespace Sitemaps
             var nodes = CacheOrGetStaticNodes(context);
 
             var source = new List<SitemapNode>(nodes);
-            source.AddRange(_dynamicNodes);
+            source.AddRange(DynamicNodes);
             
             return new PagedQueryable<SitemapNode>(source.AsQueryable(), page, count);
         }
@@ -114,15 +115,15 @@ namespace Sitemaps
         {
             foreach(var node in nodes)
             {
-                _dynamicNodes.Add(node);
+                DynamicNodes.Add(node);
             }
         }
 
         private IEnumerable<SitemapNode> CacheOrGetStaticNodes(ControllerContext context)
         {
-            lock (_sync)
+            lock (Sync)
             {
-                if (_staticNodes.Count == 0)
+                if (StaticNodes.Count == 0)
                 {
                     var manifest = GetStaticManifest();
                     var timestamp = DateTime.UtcNow;
@@ -140,20 +141,19 @@ namespace Sitemaps
 
                     foreach (var node in nodes.Where(n => Uri.IsWellFormedUriString(n.Url, UriKind.Absolute) && n.Url.MatchesRouteWithHttpGet()))
                     {
-                        _staticNodes.Add(node);
+                        StaticNodes.Add(node);
                     }
                 }
 
-                return _staticNodes;
+                return StaticNodes;
             }
         }
 
         private static IEnumerable<KeyValuePair<Type, List<Tuple<string, SitemapAttribute>>>> GetStaticManifest()
         {
-            lock (_sync)
+            lock (Sync)
             {
                 var manifest = new Dictionary<Type, List<Tuple<string, SitemapAttribute>>>(0);
-
                 var assemblies = AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.GlobalAssemblyCache && !a.ReflectionOnly);
                 var controllerTypes = assemblies.SelectMany(assembly => assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(Controller))));
 

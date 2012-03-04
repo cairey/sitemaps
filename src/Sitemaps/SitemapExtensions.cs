@@ -14,15 +14,15 @@ namespace Sitemaps
             using(RouteTable.Routes.GetReadLock())
             {
                 return RouteTable.Routes.Aggregate(false, (current, route) =>
-                                                              {
-                                                                  if (!fakeContext.Request.AppRelativeCurrentExecutionFilePath.Equals("~/"))
-                                                                  {
-                                                                      var routeData = route.GetRouteData(fakeContext);
-                                                                      var matches = routeData != null;
-                                                                      return current | matches;
-                                                                  }
-                                                                  return true;
-                                                              });    
+                {
+                    if (!fakeContext.Request.AppRelativeCurrentExecutionFilePath.Equals("~/"))
+                    {
+                        var routeData = route.GetRouteData(fakeContext);
+                        var matches = routeData != null;
+                        return current | matches;
+                    }
+                    return true;
+                });
             }
         }
 
