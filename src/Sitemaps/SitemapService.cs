@@ -80,7 +80,7 @@ namespace Sitemaps
                         new XElement(xmlns + "loc", Uri.EscapeUriString(node.Url)),
                         new XElement(xmlns + "lastmod", node.LastModified.ToString("yyyy-MM-ddTHH:mmK", CultureInfo.InvariantCulture)),
                         new XElement(xmlns + "changefreq", node.Frequency.ToString().ToLowerInvariant()),
-                        new XElement(xmlns + "priority", node.Priority.ToString().ToLowerInvariant())
+                        new XElement(xmlns + "priority", node.Priority.ToString(CultureInfo.InvariantCulture).ToLowerInvariant())
                         ));
                 }
             }
